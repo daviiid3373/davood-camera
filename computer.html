@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نمایش دوربین</title>
+</head>
+<body>
+    <h2>دوربین گوشی روی کامپیوتر</h2>
+    <video id="remoteVideo" autoplay playsinline></video>
+    <button onclick="startReceiving()">دریافت ویدیو</button>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.5.0/firebase-app.js";
+        import { getDatabase, ref, get, onValue } from "https://www.gstatic.com/firebasejs/11.5.0/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyD59FDISSbsOflRvhXadgfJCTHTdjWk7GM",
+            authDomain: "davood-camera.firebaseapp.com",
+            databaseURL: "https://davood-camera-default-rtdb.firebaseio.com",
+            projectId: "davood-camera",
+            storageBucket: "davood-camera.appspot.com",
+            messagingSenderId: "99965180483",
+            appId: "1:99965180483:web:cae35e922a1ebf81da52f6"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
+        const remoteVideo = document.getElementById("remoteVideo");
+
+        let peerConnection;
+        const servers = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+
+        async function startReceiving() {
+            peerConnection = new RTCPeerConnection(servers);
+            peerConnection.ontrack = event => {
+                remoteVideo.srcObject = event.streams[0];
+            };
+
+            const offerRef = ref(database, "offer");
+            get(offerRef).then(snapshot => {
+                if (snapshot.exists()) {
+                    const offer = JSON.parse(snapshot.val());
+                    peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+                    createAnswer();
+                }
+            });
+
+            onValue(ref(database, "offerCandidate"), snapshot => {
+                if (snapshot.exists()) {
+                    const candidate = JSON.parse(snapshot.val());
+                    peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+                }
+            });
+        }
+
+        async function createAnswer() {
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+            set(ref(database, "answer"), JSON.stringify(answer));
+        }
+    </script>
+</body>
+</html>
